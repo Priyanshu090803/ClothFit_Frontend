@@ -2,6 +2,7 @@
 
 /**
  * Generate Page - Main try-on generation interface
+ * Updated to include Model Selection. Removed Image Count, Resolution, Aspect Ratio.
  */
 
 import { useState, useCallback } from 'react';
@@ -12,15 +13,13 @@ import { z } from 'zod';
 import { generateTryon, pollJobUntilComplete, type TryonJobResponse } from '@/lib/api';
 import { useRequireAuth } from '@/lib/auth';
 import { UploadField } from '@/components/UploadField';
-import { ResolutionSelect } from '@/components/ResolutionSelect';
-import { AspectSelect } from '@/components/AspectSelect';
-import { ImageCountSelect } from '@/components/ImageCountSelect';
+
+
+import { ModelSelect } from '@/components/ModelSelect';
 import { ResultGrid } from '@/components/ResultGrid';
 
 const generateSchema = z.object({
-    aspectRatio: z.string(),
-    resolution: z.string(),
-    imageCount: z.number().min(1).max(4),
+    modelType: z.enum(['nano-banana', 'nano-banana-pro']),
     prompt: z.string().optional(),
 });
 
@@ -43,9 +42,7 @@ export default function GeneratePage() {
     } = useForm<GenerateForm>({
         resolver: zodResolver(generateSchema),
         defaultValues: {
-            aspectRatio: '3:4',
-            resolution: '1K',
-            imageCount: 1,
+            modelType: 'nano-banana-pro',
             prompt: '',
         },
     });
@@ -65,10 +62,11 @@ export default function GeneratePage() {
                 const job = await generateTryon(
                     modelPhoto,
                     clothPhoto,
-                    data.aspectRatio,
-                    data.resolution,
-                    data.imageCount,
-                    data.prompt
+                    '3:4', // Default Aspect Ratio
+                    '1K',  // Default Resolution
+                    1,     // Default Image Count
+                    data.prompt,
+                    data.modelType
                 );
 
                 setCurrentJob(job);
@@ -140,39 +138,15 @@ export default function GeneratePage() {
                         <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-6 space-y-6">
                             <h3 className="text-lg font-semibold text-white">Generation Settings</h3>
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <Controller
-                                    name="aspectRatio"
+                                    name="modelType"
                                     control={control}
                                     render={({ field }) => (
-                                        <AspectSelect
+                                        <ModelSelect
                                             value={field.value}
                                             onChange={field.onChange}
-                                            error={errors.aspectRatio?.message}
-                                        />
-                                    )}
-                                />
-
-                                <Controller
-                                    name="resolution"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <ResolutionSelect
-                                            value={field.value}
-                                            onChange={field.onChange}
-                                            error={errors.resolution?.message}
-                                        />
-                                    )}
-                                />
-
-                                <Controller
-                                    name="imageCount"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <ImageCountSelect
-                                            value={field.value}
-                                            onChange={field.onChange}
-                                            error={errors.imageCount?.message}
+                                            error={errors.modelType?.message}
                                         />
                                     )}
                                 />

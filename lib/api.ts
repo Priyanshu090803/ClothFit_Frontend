@@ -287,7 +287,9 @@ export async function generateTryon(
     aspectRatio: string,
     resolution: string,
     imageCount: number,
-    prompt?: string
+
+    prompt?: string,
+    modelType: string = 'nano-banana-pro'
 ): Promise<TryonJobResponse> {
     const formData = new FormData();
     formData.append('model_photo', modelPhoto);
@@ -295,6 +297,7 @@ export async function generateTryon(
     formData.append('aspect_ratio', aspectRatio);
     formData.append('resolution', resolution);
     formData.append('image_count', imageCount.toString());
+    formData.append('model_type', modelType);
 
     if (prompt) {
         formData.append('prompt', prompt);
