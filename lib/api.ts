@@ -346,3 +346,34 @@ export async function pollJobUntilComplete(
 
     throw new ApiClientError('Job polling timeout', 'POLLING_TIMEOUT', 408);
 }
+
+/** Generate batch try-on images for multiple body models with one garment */
+export async function generateBatchTryon(
+    modelPhotos: File[],
+    clothPhoto: File,
+    aspectRatio: string,
+    resolution: string,
+    prompt?: string,
+    modelType: string = 'nano-banana-pro'
+): Promise<TryonJobResponse> {
+    const formData = new FormData();
+
+    // Append multiple model photos
+    for (const photo of modelPhotos) {
+        formData.append('model_photos', photo);
+    }
+
+    formData.append('cloth_photo', clothPhoto);
+    formData.append('aspect_ratio', aspectRatio);
+    formData.append('resolution', resolution);
+    formData.append('model_type', modelType);
+
+    if (prompt) {
+        formData.append('prompt', prompt);
+    }
+
+    return apiRequest<TryonJobResponse>('/tryon/generate-batch', {
+        method: 'POST',
+        body: formData,
+    });
+}

@@ -2,8 +2,9 @@
 
 /**
  * ResultGrid Component
- * 
- * Grid display for generated images with download and copy URL actions
+ *
+ * Grid display for generated images with download, copy URL actions.
+ * Supports batch mode with labeled results.
  */
 
 import { useState, useCallback } from 'react';
@@ -13,9 +14,10 @@ interface ResultGridProps {
     images: string[];
     status: JobStatus;
     errorMessage?: string | null;
+    totalModels?: number;
 }
 
-export function ResultGrid({ images, status, errorMessage }: ResultGridProps) {
+export function ResultGrid({ images, status, errorMessage, totalModels }: ResultGridProps) {
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
     const handleDownload = useCallback(async (url: string, index: number) => {
@@ -45,7 +47,16 @@ export function ResultGrid({ images, status, errorMessage }: ResultGridProps) {
         }
     }, []);
 
+    const handleDownloadAll = useCallback(async () => {
+        for (let i = 0; i < images.length; i++) {
+            await handleDownload(images[i], i);
+            // Small delay between downloads
+            await new Promise((r) => setTimeout(r, 300));
+        }
+    }, [images, handleDownload]);
+
     if (status === 'pending' || status === 'processing') {
+        const isBatch = totalModels && totalModels > 1;
         return (
             <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-8">
                 <div className="flex flex-col items-center justify-center">
@@ -54,8 +65,26 @@ export function ResultGrid({ images, status, errorMessage }: ResultGridProps) {
                         {status === 'pending' ? 'Preparing generation...' : 'Generating images...'}
                     </p>
                     <p className="mt-2 text-sm text-gray-400">
-                        This may take up to a minute
+                        {isBatch
+                            ? `Processing ${totalModels} body models concurrently (3 at a time). This may take a few minutes.`
+                            : 'This may take up to a minute'}
                     </p>
+
+                    {/* Progress indicator for batch */}
+                    {isBatch && status === 'processing' && (
+                        <div className="mt-4 w-full max-w-xs">
+                            <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>Processing...</span>
+                                <span>{totalModels} models</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
+                                <div
+                                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-pulse"
+                                    style={{ width: '60%' }}
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -83,10 +112,45 @@ export function ResultGrid({ images, status, errorMessage }: ResultGridProps) {
         return null;
     }
 
+    const isBatch = images.length > 1;
+
     return (
         <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">Generated Images</h3>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                    Generated Images
+                    {isBatch && (
+                        <span className="ml-2 text-sm font-normal text-gray-400">
+                            ({images.length} results)
+                        </span>
+                    )}
+                </h3>
+                {isBatch && (
+                    <button
+                        onClick={handleDownloadAll}
+                        className="flex items-center gap-1.5 rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                    >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download All
+                    </button>
+                )}
+            </div>
+
+            {/* Warning for partial failures */}
+            {errorMessage && status === 'completed' && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+                    ⚠️ {errorMessage}
+                </div>
+            )}
+
+            <div className={`grid gap-4 ${images.length === 1
+                    ? 'grid-cols-1'
+                    : images.length <= 4
+                        ? 'grid-cols-2'
+                        : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+                }`}>
                 {images.map((url, index) => (
                     <div
                         key={index}
@@ -97,6 +161,14 @@ export function ResultGrid({ images, status, errorMessage }: ResultGridProps) {
                             alt={`Generated result ${index + 1}`}
                             className="w-full object-cover"
                         />
+
+                        {/* Body label */}
+                        {isBatch && (
+                            <div className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-gray-200 backdrop-blur-sm">
+                                Body {index + 1}
+                            </div>
+                        )}
+
                         <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100">
                             <div className="flex gap-2 p-4">
                                 <button

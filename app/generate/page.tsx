@@ -2,7 +2,7 @@
 
 /**
  * Generate Page - Main try-on generation interface
- * Updated to include Model Selection. Removed Image Count, Resolution, Aspect Ratio.
+ * Supports batch mode: multiple body models + one garment.
  */
 
 import { useState, useCallback } from 'react';
@@ -10,11 +10,10 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { generateTryon, pollJobUntilComplete, type TryonJobResponse } from '@/lib/api';
+import { generateBatchTryon, pollJobUntilComplete, type TryonJobResponse } from '@/lib/api';
 import { useRequireAuth } from '@/lib/auth';
 import { UploadField } from '@/components/UploadField';
-
-
+import { MultiUploadField } from '@/components/MultiUploadField';
 import { ModelSelect } from '@/components/ModelSelect';
 import { ResultGrid } from '@/components/ResultGrid';
 
@@ -29,7 +28,7 @@ export default function GeneratePage() {
     const { isLoading: authLoading } = useRequireAuth();
     const router = useRouter();
 
-    const [modelPhoto, setModelPhoto] = useState<File | null>(null);
+    const [modelPhotos, setModelPhotos] = useState<File[]>([]);
     const [clothPhoto, setClothPhoto] = useState<File | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentJob, setCurrentJob] = useState<TryonJobResponse | null>(null);
@@ -49,8 +48,8 @@ export default function GeneratePage() {
 
     const onSubmit = useCallback(
         async (data: GenerateForm) => {
-            if (!modelPhoto || !clothPhoto) {
-                setError('Please upload both model and clothing photos');
+            if (modelPhotos.length === 0 || !clothPhoto) {
+                setError('Please upload at least one model photo and a clothing photo');
                 return;
             }
 
@@ -59,12 +58,11 @@ export default function GeneratePage() {
             setCurrentJob(null);
 
             try {
-                const job = await generateTryon(
-                    modelPhoto,
+                const job = await generateBatchTryon(
+                    modelPhotos,
                     clothPhoto,
-                    '3:4', // Default Aspect Ratio
-                    '1K',  // Default Resolution
-                    1,     // Default Image Count
+                    '3:4',
+                    '1K',
                     data.prompt,
                     data.modelType
                 );
@@ -84,11 +82,11 @@ export default function GeneratePage() {
                 setIsGenerating(false);
             }
         },
-        [modelPhoto, clothPhoto]
+        [modelPhotos, clothPhoto]
     );
 
     const handleReset = useCallback(() => {
-        setModelPhoto(null);
+        setModelPhotos([]);
         setClothPhoto(null);
         setCurrentJob(null);
         setError(null);
@@ -102,13 +100,15 @@ export default function GeneratePage() {
         );
     }
 
+    const totalCredits = modelPhotos.length * 2;
+
     return (
         <div className="space-y-8">
             {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-white">Generate Try-On</h1>
                 <p className="mt-2 text-gray-400">
-                    Upload a model photo and clothing item to generate realistic try-on images
+                    Upload body model photos and a clothing item to generate realistic fitted garment images
                 </p>
             </div>
 
@@ -123,16 +123,30 @@ export default function GeneratePage() {
                         )}
 
                         {/* Upload Fields */}
-                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                            <UploadField
-                                label="Model Photo"
-                                onChange={setModelPhoto}
+                        <div className="space-y-6">
+                            <MultiUploadField
+                                label="Body Model Photos"
+                                maxFiles={8}
+                                onChange={setModelPhotos}
                             />
                             <UploadField
                                 label="Clothing Photo"
                                 onChange={setClothPhoto}
                             />
                         </div>
+
+                        {/* Credit estimate */}
+                        {modelPhotos.length > 0 && (
+                            <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-sm">
+                                <svg className="h-4 w-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-amber-300">
+                                    {modelPhotos.length} {modelPhotos.length === 1 ? 'model' : 'models'} × 2 stages = <strong>{totalCredits} API credits</strong>
+                                    <span className="text-amber-400/60 ml-1">(~${(totalCredits * 0.134).toFixed(2)})</span>
+                                </span>
+                            </div>
+                        )}
 
                         {/* Settings */}
                         <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-6 space-y-6">
@@ -176,7 +190,7 @@ export default function GeneratePage() {
                         <div className="flex gap-4">
                             <button
                                 type="submit"
-                                disabled={isGenerating || !modelPhoto || !clothPhoto}
+                                disabled={isGenerating || modelPhotos.length === 0 || !clothPhoto}
                                 className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-4 font-semibold text-white transition-all hover:from-violet-500 hover:to-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isGenerating ? (
@@ -185,14 +199,14 @@ export default function GeneratePage() {
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                         </svg>
-                                        Generating...
+                                        Generating {modelPhotos.length} {modelPhotos.length === 1 ? 'image' : 'images'}...
                                     </span>
                                 ) : (
                                     <span className="flex items-center justify-center gap-2">
                                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                         </svg>
-                                        Generate Image
+                                        Generate {modelPhotos.length > 1 ? `${modelPhotos.length} Images` : 'Image'}
                                     </span>
                                 )}
                             </button>
@@ -217,6 +231,7 @@ export default function GeneratePage() {
                             images={currentJob.result_urls}
                             status={currentJob.status}
                             errorMessage={currentJob.error_message}
+                            totalModels={currentJob.image_count}
                         />
                     ) : (
                         <div className="flex h-full items-center justify-center rounded-2xl border-2 border-dashed border-gray-800 p-12">
@@ -228,7 +243,7 @@ export default function GeneratePage() {
                                 </div>
                                 <p className="text-lg font-medium text-gray-300">No results yet</p>
                                 <p className="mt-2 text-sm text-gray-500">
-                                    Upload photos and click Generate to see results
+                                    Upload body photos and a garment to generate fitted images
                                 </p>
                             </div>
                         </div>
