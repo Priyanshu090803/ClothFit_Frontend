@@ -324,7 +324,8 @@ export async function pollJobUntilComplete(
     jobId: number,
     onUpdate?: (job: TryonJobResponse) => void,
     intervalMs = 2000,
-    maxAttempts = 60
+    // Backend generation timeout is up to ~180s, so allow a bit more headroom.
+    maxAttempts = 100
 ): Promise<TryonJobResponse> {
     let attempts = 0;
 
